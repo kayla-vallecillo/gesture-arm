@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DIY Oscilloscope</title>
+<link rel="stylesheet" href="style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gilda+Display&family=Source+Serif+4:ital,opsz,wght@0,8..60,200..900;1,8..60,200..900&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- ═══════ HERO ═══════ -->
+<section id="hero">
+  <div id="wavy-title"></div>
+  <p class="hero-sub">hand-held, real-time oscilloscope waveform analysis</p>
+
+  <a href="oscilloscope_dashboard.html" class="cta-btn">
+    Open live dashboard
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </a>
+
+  <div class="scroll-hint">
+    <span>scroll</span>
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M8 3v10M4 9l4 4 4-4" stroke="#372d24" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </div>
+
+  <canvas id="waveform-canvas"></canvas>
+</section>
+
+<!-- ═══════ SECTIONS ═══════ -->
+<div id="content">
+
+  <section class="section">
+    <div class="section-inner">
+      <div class="reveal">
+        <span class="tag">What it is</span>
+        <h2 class="section-title">a pocket-sized<br><span>signal analyzer</span></h2>
+        <p class="section-body">
+          this project puts a full-featured oscilloscope in the palm of your hand.
+          built from off-the-shelf components and open firmware, it captures, processes,
+          and streams <strong>real-time waveform data</strong> — then visualizes everything
+          through this web interface.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-inner">
+      <div class="reveal">
+        <span style="color: rgba(237, 217, 196, 0.672);" class="tag">hardware</span>
+        <h2 style="color: rgba(237, 217, 196, 0.672);" class="section-title">built from<br><span>bare components</span></h2>
+        <p style="color: rgba(237, 217, 196, 0.672);" class="section-body">
+          At its core lives a <strong>high-speed ADC</strong> paired with a microcontroller
+          that handles buffering and compression. The analog front-end features adjustable
+          gain and input protection, so the device can safely probe anything from millivolt
+          sensor outputs to mains-level signals.
+        </p>
+      </div>
+      <div class="stats reveal" style="transition-delay: 0.1s;">
+        <div class="stat">
+          <span class="stat-value">1M</span>
+          <span style="color: rgba(237, 217, 196, 0.672);" class="stat-label">Samples / sec</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value">12</span>
+          <span style="color: rgba(237, 217, 196, 0.672);" class="stat-label">Bit resolution</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value">±50</span>
+          <span style="color: rgba(237, 217, 196, 0.672);" class="stat-label">Volt input range</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value">8h</span>
+          <span style="color: rgba(237, 217, 196, 0.672);" class="stat-label">Battery life</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-inner">
+      <div class="reveal">
+        <span class="tag">The pipeline</span>
+        <h2 class="section-title">From probe tip<br><span>to your browser</span></h2>
+        <p class="section-body">
+          Sampled data flows through a compression stage on-device, then transmits over
+          USB or Wi-Fi to a local server. The server decodes, buffers, and serves the
+          stream to this web frontend — keeping latency under <strong>50 ms</strong>
+          end-to-end.
+        </p>
+      </div>
+      <div class="diagram reveal" style="transition-delay: 0.1s;">
+        <div class="diagram-label">live signal preview</div>
+        <canvas id="preview-canvas" height="120"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-inner">
+      <div class="reveal">
+        <span style="color: rgba(237, 217, 196, 0.672);" class="tag">The software</span>
+        <h2 style="color: rgba(237, 217, 196, 0.672);" class="section-title">Web-native<br><span>visualization</span></h2>
+        <p style="color: rgba(237, 217, 196, 0.672);" class="section-body">
+          The frontend is built around a <strong>Canvas-based renderer</strong> that
+          draws waveforms at 60 fps. Trigger detection, time-base scaling, and
+          measurement overlays all run client-side. No plugins, no installs — just
+          open the page and probe.
+        </p>
+      </div>
+      <div class="chips reveal" style="transition-delay: 0.12s;">
+        <span style="color: rgba(237, 217, 196, 0.672);" class="chip">Canvas API</span>
+        <span style="color: rgba(237, 217, 196, 0.672);" class="chip">WebSockets</span>
+        <span style="color: rgba(237, 217, 196, 0.672);" class="chip">Web Workers</span>
+        <span style="color: rgba(237, 217, 196, 0.672);" class="chip">IndexedDB logging</span>
+        <span style="color: rgba(237, 217, 196, 0.672);" class="chip">CSV export</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-inner">
+      <div class="reveal">
+        <span class="tag">Open source</span>
+        <h2 class="section-title">Everything is<br><span>documented</span></h2>
+        <p class="section-body">
+          Schematics, gerbers, firmware, and this web app are all public.
+          The goal is a platform anyone can build, fork, and extend — whether
+          you're debugging a sensor, teaching electronics, or just curious
+          what your power supply actually looks like.
+        </p>
+      </div>
+      <div class="chips reveal" style="transition-delay: 0.12s;">
+        <span class="chip">KiCad schematics</span>
+        <span class="chip">MIT license</span>
+        <span class="chip">Full build guide</span>
+        <span class="chip">GitHub</span>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <p>Built with curiosity &amp; solder — <span>DIY Oscilloscope Project</span></p>
+</footer>
+
+<script>
+// ── WAVY TITLE ──
+const title = "pocket oscilloscope";
+const container = document.getElementById('wavy-title');
+let delay = 0;
+for (const ch of title) {
+  const span = document.createElement('span');
+  if (ch === ' ') {
+    span.className = 'wave-char space';
+  } else {
+    span.className = 'wave-char';
+    span.textContent = ch;
+    span.style.animationDelay = delay + 's';
+    delay += 0.07;
+  }
+  container.appendChild(span);
+}
+
+// ── HERO WAVEFORM ──
+(function() {
+  const canvas = document.getElementById('waveform-canvas');
+  const ctx = canvas.getContext('2d');
+  let t = 0;
+
+  function resize() {
+    canvas.width = canvas.offsetWidth * devicePixelRatio;
+    canvas.height = canvas.offsetHeight * devicePixelRatio;
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  function drawHeroWave() {
+    const w = canvas.offsetWidth;
+    const h = canvas.offsetHeight;
+    ctx.clearRect(0, 0, w, h);
+
+    // gradient fade from transparent top to color
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, 'transparent');
+    grad.addColorStop(1, '#b4977b');
+
+    ctx.beginPath();
+    for (let x = 0; x <= w; x++) {
+      const prog = x / w;
+      const y = h * 0.45
+        + Math.sin(prog * 14 + t) * h * 0.18
+        + Math.sin(prog * 5 - t * 0.7) * h * 0.10
+        + Math.sin(prog * 30 + t * 1.3) * h * 0.04;
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.lineTo(w, h);
+    ctx.lineTo(0, h);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.beginPath();
+    for (let x = 0; x <= w; x++) {
+      const prog = x / w;
+      const y = h * 0.45
+        + Math.sin(prog * 14 + t) * h * 0.18
+        + Math.sin(prog * 5 - t * 0.7) * h * 0.10
+        + Math.sin(prog * 30 + t * 1.3) * h * 0.04;
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = '#372d24';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    t += 0.018;
+    requestAnimationFrame(drawHeroWave);
+  }
+  drawHeroWave();
+})();
+
+// ── PREVIEW CANVAS ──
+(function() {
+  const canvas = document.getElementById('preview-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let t = 0;
+
+  function resize() {
+    canvas.width = canvas.offsetWidth * devicePixelRatio;
+    canvas.height = canvas.offsetHeight * devicePixelRatio;
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+  }
+
+  const ro = new ResizeObserver(resize);
+  ro.observe(canvas);
+  resize();
+
+  function drawPreview() {
+    const w = canvas.offsetWidth;
+    const h = canvas.offsetHeight;
+    ctx.clearRect(0, 0, w, h);
+
+    // grid lines
+    ctx.strokeStyle = 'rgba(0,255,200,0.08)';
+    ctx.lineWidth = 1;
+    for (let i = 1; i < 4; i++) {
+      ctx.beginPath(); ctx.moveTo(0, h * i / 4); ctx.lineTo(w, h * i / 4); ctx.stroke();
+    }
+    for (let i = 1; i < 8; i++) {
+      ctx.beginPath(); ctx.moveTo(w * i / 8, 0); ctx.lineTo(w * i / 8, h); ctx.stroke();
+    }
+
+    // main trace
+    ctx.beginPath();
+    for (let x = 0; x <= w; x++) {
+      const p = x / w;
+      const y = h / 2 + Math.sin(p * 20 + t) * h * 0.35
+               + Math.sin(p * 7 + t * 0.5) * h * 0.1;
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = '#372d24';
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = '#665341';
+    ctx.shadowBlur = 6;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // second trace (trigger)
+    ctx.beginPath();
+    for (let x = 0; x <= w; x++) {
+      const p = x / w;
+      const y = h / 2 + Math.cos(p * 20 + t + 1) * h * 0.2;
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = '#372d24';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    t += 0.025;
+    requestAnimationFrame(drawPreview);
+  }
+  drawPreview();
+})();
+
+// ── INTERSECTION OBSERVER for scroll reveals ──
+const reveals = document.querySelectorAll('.reveal');
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('visible');
+      io.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.15 });
+reveals.forEach(el => io.observe(el));
+</script>
+</body>
+</html>

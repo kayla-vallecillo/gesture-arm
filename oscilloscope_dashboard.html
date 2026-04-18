@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>OSC — Live Dashboard</title>
+<link rel="stylesheet" href="dashboard.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gilda+Display&family=Source+Serif+4:ital,opsz,wght@0,8..60,200..900;1,8..60,200..900&display=swap" rel="stylesheet">
+
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div id="topbar">
+  <a href="oscilloscope_landing.html" class="back-btn">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M9 2L4 7l5 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Back
+  </a>
+  <span class="logo">OSC //</span>
+  <span style="font-size:0.68rem;color:var(--muted);letter-spacing:0.12em;">Live Dashboard</span>
+  <div class="topbar-spacer"></div>
+  <div class="status-dot" id="status-dot"></div>
+  <span class="status-label" id="status-label">Streaming</span>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+
+    <!-- Voltage Input -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">Signal Input</div>
+      <div class="voltage-input-wrap">
+        <input type="number" id="voltage-input" value="1.0" step="0.1" min="-50" max="50"/>
+        <span class="voltage-unit">V</span>
+      </div>
+      <input type="range" id="voltage-slider" min="-10" max="10" step="0.05" value="1.0"/>
+      <div class="range-row"><span>−10 V</span><span>+10 V</span></div>
+    </div>
+
+    <!-- Timebase -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">Time Base</div>
+      <div class="tb-row">
+        <button class="tb-btn" id="tb-minus">−</button>
+        <span id="tb-label">5 s</span>
+        <button class="tb-btn" id="tb-plus">+</button>
+      </div>
+      <div class="range-row"><span>Window shown</span></div>
+    </div>
+
+    <!-- Live Stats -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">Measurements</div>
+      <div class="stat-grid">
+        <div class="stat-cell">
+          <div class="stat-cell-label">Current</div>
+          <div class="stat-cell-value" id="m-cur">—</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-cell-label">Max</div>
+          <div class="stat-cell-value" id="m-max">—</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-cell-label">Min</div>
+          <div class="stat-cell-value neg" id="m-min">—</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-cell-label">RMS</div>
+          <div class="stat-cell-value rms" id="m-rms">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">Controls</div>
+      <button class="ctrl-btn" id="btn-pause">
+        <div class="btn-dot"></div>Pause stream
+      </button>
+      <button class="ctrl-btn" id="btn-record">
+        <div class="btn-dot"></div>Start recording
+      </button>
+      <button class="ctrl-btn" id="btn-clear">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path d="M2 2l6 6M8 2L2 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        </svg>
+        Clear buffer
+      </button>
+      <button class="ctrl-btn export" id="btn-export">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path d="M5 1v6M2 5l3 3 3-3M1 9h8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Export .csv
+      </button>
+    </div>
+
+  </div><!-- /sidebar -->
+
+  <!-- GRAPH AREA -->
+  <div id="graph-area">
+    <div id="canvas-wrap">
+      <canvas id="main-canvas"></canvas>
+      <div id="tooltip"><div class="tooltip-box">
+        <div class="tooltip-time" id="tt-time"></div>
+        <div class="tooltip-volt" id="tt-volt"></div>
+      </div></div>
+      <div id="rec-banner">
+        <div style="width:7px;height:7px;border-radius:50%;background:var(--red);"></div>
+        REC <span id="rec-time-banner">00:00</span>
+      </div>
+    </div>
+
+    <!-- Bottom status bar -->
+    <div id="bottom-bar">
+      <div>Points: <span id="b-points">0</span></div>
+      <div>Rate: <span id="b-rate">50 Hz</span></div>
+      <div id="rec-timer" style="display:none">● REC <span id="b-rec-time">00:00</span></div>
+      <div style="margin-left:auto;color:var(--muted)">Hover graph to inspect values</div>
+    </div>
+
+  </div><!-- /graph-area -->
+
+</div><!-- /main -->
+
+<script>
+// ══════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════
+const POLL_MS   = 20;        // ~50 Hz
+const MAX_PTS   = 50000;     // rolling buffer cap
+const NOISE_AMP = 0.08;      // simulated noise amplitude
+
+let data        = [];        // [{t, v}]
+let paused      = false;
+let recording   = false;
+let recStart    = 0;
+let recData     = [];
+let recInterval = null;
+
+let timebases   = [1, 2, 5, 10, 20, 30, 60];
+let tbIdx       = 2;  // default 5s
+let windowSec   = timebases[tbIdx];
+
+let hoverX      = null;
+let hoverY      = null;
+
+// ══════════════════════════════════════════
+//  ELEMENTS
+// ══════════════════════════════════════════
+const canvas      = document.getElementById('main-canvas');
+const ctx         = canvas.getContext('2d');
+const wrap        = document.getElementById('canvas-wrap');
+const voltInput   = document.getElementById('voltage-input');
+const voltSlider  = document.getElementById('voltage-slider');
+const tooltip     = document.getElementById('tooltip');
+const ttTime      = document.getElementById('tt-time');
+const ttVolt      = document.getElementById('tt-volt');
+const btnPause    = document.getElementById('btn-pause');
+const btnRecord   = document.getElementById('btn-record');
+const btnExport   = document.getElementById('btn-export');
+const btnClear    = document.getElementById('btn-clear');
+const statusDot   = document.getElementById('status-dot');
+const statusLabel = document.getElementById('status-label');
+const recBanner   = document.getElementById('rec-banner');
+const recTimeBanner = document.getElementById('rec-time-banner');
+const bPoints     = document.getElementById('b-points');
+const bRecTime    = document.getElementById('b-rec-time');
+const recTimer    = document.getElementById('rec-timer');
+const tbLabel     = document.getElementById('tb-label');
+const mCur = document.getElementById('m-cur');
+const mMax = document.getElementById('m-max');
+const mMin = document.getElementById('m-min');
+const mRms = document.getElementById('m-rms');
+
+// ══════════════════════════════════════════
+//  VOLTAGE INPUT SYNC
+// ══════════════════════════════════════════
+voltInput.addEventListener('input', () => {
+  voltSlider.value = parseFloat(voltInput.value) || 0;
+});
+voltSlider.addEventListener('input', () => {
+  voltInput.value = parseFloat(voltSlider.value).toFixed(2);
+});
+
+// ══════════════════════════════════════════
+//  TIMEBASE
+// ══════════════════════════════════════════
+function updateTb() {
+  windowSec = timebases[tbIdx];
+  tbLabel.textContent = windowSec >= 60 ? '60 s' : windowSec + ' s';
+}
+document.getElementById('tb-minus').addEventListener('click', () => {
+  if (tbIdx > 0) { tbIdx--; updateTb(); }
+});
+document.getElementById('tb-plus').addEventListener('click', () => {
+  if (tbIdx < timebases.length - 1) { tbIdx++; updateTb(); }
+});
+updateTb();
+
+// ══════════════════════════════════════════
+//  DATA POLLING (simulated)
+// ══════════════════════════════════════════
+function getTargetVoltage() {
+  return parseFloat(voltInput.value) || 0;
+}
+
+setInterval(() => {
+  if (paused) return;
+  const t = performance.now() / 1000;
+  const base = getTargetVoltage();
+  const noise = (Math.random() - 0.5) * 2 * NOISE_AMP * Math.max(1, Math.abs(base) * 0.05 + 0.5);
+  const v = base + noise;
+  const pt = { t, v };
+  data.push(pt);
+  if (data.length > MAX_PTS) data.shift();
+  if (recording) recData.push(pt);
+}, POLL_MS);
+
+// ══════════════════════════════════════════
+//  PAUSE / RESUME
+// ══════════════════════════════════════════
+btnPause.addEventListener('click', () => {
+  paused = !paused;
+  btnPause.querySelector('.btn-dot').style.background = paused ? 'var(--accent)' : 'currentColor';
+  btnPause.textContent = '';
+  const dot = document.createElement('div');
+  dot.className = 'btn-dot';
+  btnPause.prepend(dot);
+  btnPause.append(paused ? 'Resume stream' : 'Pause stream');
+  statusDot.className = 'status-dot' + (paused ? ' paused' : '');
+  statusLabel.textContent = paused ? 'Paused' : 'Streaming';
+});
+
+// ══════════════════════════════════════════
+//  RECORD
+// ══════════════════════════════════════════
+function fmtTime(sec) {
+  const m = Math.floor(sec / 60).toString().padStart(2,'0');
+  const s = Math.floor(sec % 60).toString().padStart(2,'0');
+  return m + ':' + s;
+}
+
+btnRecord.addEventListener('click', () => {
+  recording = !recording;
+  if (recording) {
+    recStart = performance.now();
+    recData  = [];
+    btnRecord.classList.add('active');
+    btnRecord.querySelector('.btn-dot').style.background = 'var(--red)';
+    btnRecord.childNodes[1].textContent = 'Stop recording';
+    recBanner.classList.add('show');
+    recTimer.style.display = '';
+    statusDot.className = 'status-dot recording';
+    statusLabel.textContent = 'Recording';
+    recInterval = setInterval(() => {
+      const elapsed = (performance.now() - recStart) / 1000;
+      const s = fmtTime(elapsed);
+      recTimeBanner.textContent = s;
+      bRecTime.textContent = s;
+    }, 500);
+  } else {
+    btnRecord.classList.remove('active');
+    btnRecord.querySelector('.btn-dot').style.background = 'currentColor';
+    btnRecord.childNodes[1].textContent = 'Start recording';
+    recBanner.classList.remove('show');
+    recTimer.style.display = 'none';
+    statusDot.className = 'status-dot' + (paused ? ' paused' : '');
+    statusLabel.textContent = paused ? 'Paused' : 'Streaming';
+    clearInterval(recInterval);
+  }
+});
+
+// ══════════════════════════════════════════
+//  CLEAR
+// ══════════════════════════════════════════
+btnClear.addEventListener('click', () => {
+  data = [];
+  if (recording) recData = [];
+});
+
+// ══════════════════════════════════════════
+//  EXPORT CSV
+// ══════════════════════════════════════════
+btnExport.addEventListener('click', () => {
+  const src = recording && recData.length ? recData : data;
+  if (!src.length) { alert('No data to export.'); return; }
+  const t0 = src[0].t;
+  let csv = 'time_s,voltage_v\n';
+  for (const pt of src) {
+    csv += (pt.t - t0).toFixed(4) + ',' + pt.v.toFixed(5) + '\n';
+  }
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'osc_data_' + new Date().toISOString().slice(0,19).replace(/:/g,'-') + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// ══════════════════════════════════════════
+//  CANVAS RESIZE
+// ══════════════════════════════════════════
+function resizeCanvas() {
+  canvas.width  = wrap.clientWidth  * devicePixelRatio;
+  canvas.height = wrap.clientHeight * devicePixelRatio;
+}
+new ResizeObserver(resizeCanvas).observe(wrap);
+resizeCanvas();
+
+// ══════════════════════════════════════════
+//  TOOLTIP / HOVER
+// ══════════════════════════════════════════
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  hoverX = e.clientX - rect.left;
+  hoverY = e.clientY - rect.top;
+  tooltip.style.display = 'block';
+  // position tooltip so it doesn't overflow
+  let tx = e.clientX - rect.left + 18;
+  let ty = e.clientY - rect.top - 8;
+  if (tx + 130 > rect.width) tx = hoverX - 145;
+  if (ty < 0) ty = 4;
+  tooltip.style.left = tx + 'px';
+  tooltip.style.top  = ty + 'px';
+});
+canvas.addEventListener('mouseleave', () => {
+  hoverX = null;
+  tooltip.style.display = 'none';
+});
+
+// ══════════════════════════════════════════
+//  RENDER LOOP
+// ══════════════════════════════════════════
+const PAD = { top: 32, right: 24, bottom: 40, left: 64 };
+
+function render() {
+  const W = canvas.width;
+  const H = canvas.height;
+  const dpr = devicePixelRatio;
+  const pw = W - (PAD.left + PAD.right) * dpr;
+  const ph = H - (PAD.top  + PAD.bottom) * dpr;
+  const ox = PAD.left * dpr;
+  const oy = PAD.top  * dpr;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // background
+  ctx.fillStyle = '#efe9e0';
+  ctx.fillRect(0, 0, W, H);
+
+  if (!data.length) { requestAnimationFrame(render); return; }
+
+  // time window
+  const tNow   = paused ? data[data.length - 1].t : performance.now() / 1000;
+  const tStart = tNow - windowSec;
+
+  // visible slice
+  const visible = data.filter(d => d.t >= tStart);
+  if (!visible.length) { requestAnimationFrame(render); return; }
+
+  // voltage range — auto-scale with padding
+  let vMin = Infinity, vMax = -Infinity;
+  for (const d of visible) {
+    if (d.v < vMin) vMin = d.v;
+    if (d.v > vMax) vMax = d.v;
+  }
+  const vPad = Math.max(0.5, (vMax - vMin) * 0.15) || 1;
+  vMin -= vPad; vMax += vPad;
+  const vRange = vMax - vMin || 1;
+
+  // helpers
+  const tx = t => ox + ((t - tStart) / windowSec) * pw;
+  const vy = v => oy + ph - ((v - vMin) / vRange) * ph;
+
+  // ── GRID ──
+  ctx.save();
+  ctx.strokeStyle = '#3d2707e3';
+  ctx.lineWidth   = 1;
+
+  const vSteps = 5;
+  for (let i = 0; i <= vSteps; i++) {
+    const v = vMin + (vRange * i / vSteps);
+    const y = vy(v);
+    ctx.beginPath(); ctx.moveTo(ox, y); ctx.lineTo(ox + pw, y); ctx.stroke();
+    // y-axis label
+    ctx.fillStyle  = 'rgba(80,88,120,0.9)';
+    ctx.font       = `${10 * dpr}px 'Courier New'`;
+    ctx.textAlign  = 'right';
+    ctx.fillText(v.toFixed(2) + 'V', ox - 8 * dpr, y + 4 * dpr);
+  }
+
+  const tSteps = 6;
+  for (let i = 0; i <= tSteps; i++) {
+    const t   = tStart + windowSec * i / tSteps;
+    const x   = tx(t);
+    ctx.beginPath(); ctx.moveTo(x, oy); ctx.lineTo(x, oy + ph); ctx.stroke();
+    const label = (t - (data[0]?.t || 0)).toFixed(1) + 's';
+    ctx.fillStyle = 'rgba(80,88,120,0.9)';
+    ctx.font      = `${10 * dpr}px 'Courier New'`;
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x, oy + ph + 18 * dpr);
+  }
+  ctx.restore();
+
+  // ── ZERO LINE ──
+  if (vMin < 0 && vMax > 0) {
+    const y0 = vy(0);
+    ctx.save();
+    ctx.strokeStyle = '#3d2707e3';
+    ctx.setLineDash([4 * dpr, 6 * dpr]);
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(ox, y0); ctx.lineTo(ox + pw, y0); ctx.stroke();
+    ctx.restore();
+  }
+
+  // ── RECORDING SHADE ──
+  if (recording && recData.length) {
+    const rStart = Math.max(recData[0].t, tStart);
+    const x1 = Math.max(ox, tx(rStart));
+    const x2 = Math.min(ox + pw, tx(tNow));
+    if (x2 > x1) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(50, 23, 3, 0.234)';
+      ctx.fillRect(x1, oy, x2 - x1, ph);
+      ctx.restore();
+    }
+  }
+
+  // ── WAVEFORM ──
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(ox, oy, pw, ph);
+  ctx.clip();
+
+  const grad = ctx.createLinearGradient(0, oy, 0, oy + ph);
+  grad.addColorStop(0,   '#3d2707e3');
+  grad.addColorStop(0.6, 'rgba(174, 143, 96, 0.648)');
+  grad.addColorStop(1,   '#efe9e08d');
+
+  // fill area
+  ctx.beginPath();
+  ctx.moveTo(tx(visible[0].t), oy + ph);
+  for (const d of visible) ctx.lineTo(tx(d.t), vy(d.v));
+  ctx.lineTo(tx(visible[visible.length-1].t), oy + ph);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // stroke
+  ctx.beginPath();
+  ctx.moveTo(tx(visible[0].t), vy(visible[0].v));
+  for (let i = 1; i < visible.length; i++) ctx.lineTo(tx(visible[i].t), vy(visible[i].v));
+  ctx.strokeStyle = '#3d2707e3';
+  ctx.lineWidth   = 1.5 * dpr;
+  ctx.lineJoin    = 'round';
+  ctx.shadowColor = '#3d2707e3';
+  ctx.shadowBlur  = 3 * dpr;
+  ctx.stroke();
+  ctx.restore();
+
+  // ── HOVER CROSSHAIR ──
+  if (hoverX !== null && hoverX >= PAD.left && hoverX <= PAD.left + pw / dpr) {
+    const hxPx = hoverX * dpr;
+    const hyPx = hoverY * dpr;
+
+    // find nearest data point in time
+    const tHover = tStart + ((hxPx - ox) / pw) * windowSec;
+    let nearest = null, minDt = Infinity;
+    for (const d of visible) {
+      const dt = Math.abs(d.t - tHover);
+      if (dt < minDt) { minDt = dt; nearest = d; }
+    }
+
+    if (nearest) {
+      const nx = tx(nearest.t);
+      const ny = vy(nearest.v);
+
+      // vertical & horizontal lines
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0,255,200,0.35)';
+      ctx.lineWidth   = 1;
+      ctx.setLineDash([4 * dpr, 4 * dpr]);
+      ctx.beginPath(); ctx.moveTo(nx, oy); ctx.lineTo(nx, oy + ph); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(ox, ny); ctx.lineTo(ox + pw, ny); ctx.stroke();
+      ctx.restore();
+
+      // dot
+      ctx.beginPath();
+      ctx.arc(nx, ny, 5 * dpr, 0, Math.PI * 2);
+      ctx.fillStyle   = '#3d2707e3';
+      ctx.shadowColor = '#3d2707e3';
+      ctx.shadowBlur  = 10 * dpr;
+      ctx.fill();
+      ctx.shadowBlur  = 0;
+
+      // tooltip content
+      const elapsed = (nearest.t - (data[0]?.t || 0)).toFixed(3);
+      ttTime.textContent = 't = ' + elapsed + ' s';
+      ttVolt.textContent = nearest.v.toFixed(4) + ' V';
+    }
+  }
+
+  // ── AXIS BORDER ──
+  ctx.save();
+  ctx.strokeStyle = 'rgba(0,255,200,0.2)';
+  ctx.lineWidth   = 1;
+  ctx.strokeRect(ox, oy, pw, ph);
+  ctx.restore();
+
+  // ── STATS ──
+  const all = data;
+  if (all.length) {
+    const cur = all[all.length - 1].v;
+    const max = Math.max(...all.map(d => d.v));
+    const min = Math.min(...all.map(d => d.v));
+    const rms = Math.sqrt(all.reduce((s, d) => s + d.v * d.v, 0) / all.length);
+    mCur.textContent = cur.toFixed(3) + ' V';
+    mMax.textContent = max.toFixed(3) + ' V';
+    mMin.textContent = min.toFixed(3) + ' V';
+    mRms.textContent = rms.toFixed(3) + ' V';
+    bPoints.textContent = all.length.toLocaleString();
+  }
+
+  requestAnimationFrame(render);
+}
+render();
+</script>
+</body>
+</html>
